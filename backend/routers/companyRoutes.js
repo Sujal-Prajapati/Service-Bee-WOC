@@ -6,22 +6,29 @@ const CompanyService = require('../controllers/company/companyServiceController'
 
 const companyAuth = require('../controllers/company/companyAuthController');
 
-const companyComplaint = require('../controllers/company/companyComplaintController');
+const companyRequest = require('../controllers/company/companyRequestController');
+const companyNotification = require('../controllers/company/companyNotificationController');
 
 companyRouter.post('/register',companyAuth.postCompanyRegister);
 companyRouter.post('/login',companyAuth.postCompanyLogin);
-companyRouter.post('/service/add',authCompany,CompanyService.postAddService);
-companyRouter.put('/service/:id',authCompany,CompanyService.postEditService);
+companyRouter.post('/complaint/add',authCompany,CompanyService.postAddService);
+companyRouter.put('/complaint/:id',authCompany,CompanyService.postEditService);
 
-companyRouter.get('/service',authCompany,CompanyService.getCompanyServices);
+companyRouter.get('/complaint',authCompany,CompanyService.getCompanyServices);
 
-companyRouter.post('/service/delete/:id',authCompany,CompanyService.postDeleteService);
+companyRouter.post('/complaint/delete/:id',authCompany,CompanyService.postDeleteService);
 
-companyRouter.get('/complaint',authCompany,
-companyComplaint.getCompanyComplaints);
+companyRouter.get('/request',authCompany,companyRequest.getCompanyRequests);
 
-companyRouter.patch('/complaint/:compId',authCompany,
-companyComplaint.patchUpdateComplaintStatus);
+companyRouter.get('/request/:compId', authCompany,
+companyRequest.getRequestDetail);
+
+companyRouter.patch('/request/:compId',authCompany,
+companyRequest.patchUpdateRequestStatus);
+
+companyRouter.get('/notification',authCompany,companyNotification.getNotifications);
+companyRouter.get('/notification/unread',authCompany,companyNotification.getUnreadNotifications);
+companyRouter.get('/notification/:notId',authCompany,companyNotification.getNotificationDetail);
 
 companyRouter.post('/refresh-token',authCompany,companyAuth.refreshAccessToken);
 

@@ -2,6 +2,8 @@ const jwt = require('jsonwebtoken');
 const Consumer = require('../models/consumer');
 
 const authConsumer = async (req,res,next)=>{
+    console.log("Auth middleware called");
+
     try{
         const token = req.headers.authorization.split(" ")[1];
         

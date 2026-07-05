@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const complaintSchema = new mongoose.Schema({
+const requestSchema = new mongoose.Schema({
     consumer : {
         type : mongoose.Schema.Types.ObjectId,
         ref : 'Consumer',
@@ -18,11 +18,15 @@ const complaintSchema = new mongoose.Schema({
     },
     status : {
         type : String,
-        enum : ['pending','accepted','rejected','completed'],
+        enum : ['pending','inProgress','rejected','resolved','cancelled'],
         default : 'pending'
     },
     description : {
         type : String,
+    },
+    expectedDate : {
+        type : Date,
+        default : null,
     },
     address : {
         type : String,
@@ -31,9 +35,30 @@ const complaintSchema = new mongoose.Schema({
     pincode : {
         type : Number,
         required : true
+    },
+    technicianName : {
+        type : String,
+        default :  null,
+    },
+    technicianPhone : {
+
+    },
+    technicianRole : {
+        type : String,
+        default : null
+    },
+    companyExpectedDate : {
+        type : Date,
+        default : null
+    },
+    consumerNote : {
+        type : String,
+        default : null
     }
+    
+
 },{timestamps:true});
 
-const Complaint = mongoose.model("Complaint",complaintSchema);
+const Request = mongoose.model("Request",requestSchema);
 
-module.exports = Complaint;
+module.exports = Request;

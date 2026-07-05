@@ -15,6 +15,23 @@ const postCompanyRegister= async (req,res)=>{
                 message : "Emai; already exist" 
             });
         }
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+        if (!emailRegex.test(email)) {
+            return res.status(400).json({
+                message: "Invalid email format",
+            });
+        }
+        
+        const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+
+        if(!passwordRegex.test(password)) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Password must contain 8 characters, uppercase, lowercase, number and special character",
+            });
+        }
 
         const newCompany = new Company({
             name,

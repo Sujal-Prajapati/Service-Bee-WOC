@@ -2,7 +2,9 @@ const Service = require('../../models/service');
 
 const getConsumerServices = async (req,res)=>{
     try{
+
         const services = await Service.find().populate('company','name');
+        // console.log(services);
         res.status(200).json({
             success:true,
             services

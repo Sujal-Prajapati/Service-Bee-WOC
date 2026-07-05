@@ -4,56 +4,93 @@ import UserLogin from './pages/UserLogin';
 import UserSignup from './pages/UserSignup';
 import UserDashboard from './pages/UserDashboard';
 import UserComplaints from './pages/UserComplaints';
+import UserNotifications from './pages/UserNotifications';
+import UserRequestDetail from './pages/UserRequestDetail';
 import CompanyLogin from './pages/CompanyLogin';
 import CompanySignup from './pages/CompanySignup';
 import CompanyDashboard from './pages/CompanyDashboard';
 import CompanyProfile from './pages/CompanyProfile';
-import CompanyServices from './pages/CompanyServices';
-import ServiceDetails from './pages/ServiceDetails';
+import CompanyCreateService from './pages/CompanyCreateService';
+import CompanyReviews from './pages/CompanyReviews';
+import CompanyNotifications from './pages/CompanyNotifications';
+import ProtectedRoute from './components/ProtectedRoute';
 
 export const router = createBrowserRouter([
-  {
-    path: '/',
-    Component: Landing,
-  },
-  {
-    path: '/user/login',
-    Component: UserLogin,
-  },
-  {
-    path: '/user/signup',
-    Component: UserSignup,
-  },
+  { path: '/', Component: Landing },
+  { path: '/user/login', Component: UserLogin },
+  { path: '/user/signup', Component: UserSignup },
   {
     path: '/user/dashboard',
-    Component: UserDashboard,
+    Component: () => (
+      <ProtectedRoute role="user">
+        <UserDashboard />
+      </ProtectedRoute>
+    ),
   },
   {
     path: '/user/complaints',
-    Component: UserComplaints,
+    Component: () => (
+      <ProtectedRoute role="user">
+        <UserComplaints />
+      </ProtectedRoute>
+    ),
   },
   {
-    path: '/company/login',
-    Component: CompanyLogin,
+    path: '/user/notifications',
+    Component: () => (
+      <ProtectedRoute role="user">
+        <UserNotifications />
+      </ProtectedRoute>
+    ),
   },
   {
-    path: '/company/signup',
-    Component: CompanySignup,
+    path: '/user/requests/:id',
+    Component: () => (
+      <ProtectedRoute role="user">
+        <UserRequestDetail />
+      </ProtectedRoute>
+    ),
   },
+  { path: '/company/login', Component: CompanyLogin },
+  { path: '/company/signup', Component: CompanySignup },
   {
     path: '/company/dashboard',
-    Component: CompanyDashboard,
-  },
-  {
-    path: '/company/services',
-    Component: CompanyServices,
+    Component: () => (
+      <ProtectedRoute role="company">
+        <CompanyDashboard />
+      </ProtectedRoute>
+    ),
   },
   {
     path: '/company/profile',
-    Component: CompanyProfile,
+    Component: () => (
+      <ProtectedRoute role="company">
+        <CompanyProfile />
+      </ProtectedRoute>
+    ),
   },
   {
-    path: '/user/service/:id',
-    Component: ServiceDetails,
+    path: '/company/services/create',
+    Component: () => (
+      <ProtectedRoute role="company">
+        <CompanyCreateService />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/company/reviews',
+    Component: () => (
+      <ProtectedRoute role="company">
+        <CompanyReviews />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/company/notifications',
+    Component: () => (
+      <ProtectedRoute role="company">
+        <CompanyNotifications />
+      </ProtectedRoute>
+    ),
   },
 ]);

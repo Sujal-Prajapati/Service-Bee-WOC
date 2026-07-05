@@ -1,7 +1,7 @@
 import { Link } from 'react-router';
 import { motion } from 'motion/react';
 import { Search, Shield, Star, Zap, CheckCircle, Users, MapPin } from 'lucide-react';
-import { categories } from '../data/mockData';
+import { categories } from '../lib/constants';
 
 export default function Landing() {
   return (

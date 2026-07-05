@@ -10,28 +10,29 @@ import {
   MapPin,
   Calendar,
   X,
+  ChevronRight,
+  HardHat,
 } from 'lucide-react';
-import { api } from '../lib/api';
+import { apiRequest } from '../lib/api';
 
-type Complaint = {
+interface Complaint {
   id: string;
-  userId?: string;
-  companyId?: string;
   companyName: string;
-  serviceTitle?: string;
-  category?: string;
   description: string;
   address: string;
-  status: 'pending' | 'accepted' | 'rejected' | 'completed';
+  status: 'pending' | 'in-progress' | 'resolved' | 'rejected';
   createdAt: string;
   resolvedAt?: string;
   rating?: number;
   feedback?: string;
-};
+  technician?: { name: string };
+}
 
 export default function UserComplaints() {
   const navigate = useNavigate();
   const [complaints, setComplaints] = useState<Complaint[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null);
   const [rating, setRating] = useState(0);
@@ -44,35 +45,37 @@ export default function UserComplaints() {
       return;
     }
 
-    const fetchComplaints = async () => {
+    const loadComplaints = async () => {
       try {
-        const response = await api.get('/consumer/complaint');
-        const complaintData = Array.isArray(response.data.complaints) ? response.data.complaints : [];
-
-        const formatted = complaintData.map((complaint: any) => ({
-          id: complaint._id || complaint.id || '',
-          userId: complaint.consumer || complaint.userId || '',
-          companyId: complaint.company?._id || complaint.companyId || '',
-          companyName: complaint.company?.name || complaint.companyName || 'Service Provider',
-          serviceTitle: complaint.service?.title || complaint.serviceTitle || complaint.title || '',
-          category: complaint.category || '',
-          description: complaint.description || '',
-          address: complaint.address || '',
-          status: complaint.status || 'pending',
-          createdAt: complaint.createdAt || complaint.createdAt || new Date().toISOString(),
-          resolvedAt: complaint.resolvedAt || complaint.resolvedAt,
-          rating: complaint.rating,
-          feedback: complaint.feedback,
-        }));
-
-        setComplaints(formatted);
-      } catch (error: any) {
-        console.error('Unable to load complaints', error);
-        alert(error.response?.data?.message || 'Unable to load complaints. Please log in again.');
+        const response = await apiRequest<{ success?: boolean; requests?: Array<any> }>('/consumer/request', {}, 'user');
+        const mapped = (response.requests || []).map((request: any) => {
+          const status: Complaint['status'] = request.status === 'inProgress'
+            ? 'in-progress'
+            : request.status === 'resolved'
+            ? 'resolved'
+            : request.status === 'rejected' || request.status === 'cancelled'
+            ? 'rejected'
+            : 'pending';
+          return {
+            id: request._id || request.id,
+            companyName: request.company?.name || request.service?.company?.name || 'Service Provider',
+            description: request.description || request.service?.description || 'Request submitted',
+            address: request.address || '',
+            status,
+            createdAt: request.createdAt || new Date().toISOString(),
+            resolvedAt: request.updatedAt,
+            technician: request.technicianName ? { name: request.technicianName } : undefined,
+          };
+        });
+        setComplaints(mapped);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Unable to load requests');
+      } finally {
+        setLoading(false);
       }
     };
 
-    fetchComplaints();
+    loadComplaints();
   }, [navigate]);
 
   const getStatusConfig = (status: Complaint['status']) => {
@@ -85,36 +88,28 @@ export default function UserComplaints() {
           border: 'border-amber-200',
           label: 'Pending',
         };
-      case 'accepted':
+      case 'in-progress':
         return {
           icon: AlertCircle,
           color: 'text-blue-600',
           bg: 'bg-blue-50',
           border: 'border-blue-200',
-          label: 'Accepted',
+          label: 'In Progress',
         };
-      case 'rejected':
-        return {
-          icon: AlertCircle,
-          color: 'text-red-600',
-          bg: 'bg-red-50',
-          border: 'border-red-200',
-          label: 'Rejected',
-        };
-      case 'completed':
+      case 'resolved':
         return {
           icon: CheckCircle,
           color: 'text-green-600',
           bg: 'bg-green-50',
           border: 'border-green-200',
-          label: 'Completed',
+          label: 'Resolved',
         };
       default:
         return {
           icon: AlertCircle,
-          color: 'text-gray-600',
-          bg: 'bg-gray-50',
-          border: 'border-gray-200',
+          color: 'text-slate-600',
+          bg: 'bg-slate-50',
+          border: 'border-slate-200',
           label: 'Unknown',
         };
     }
@@ -134,20 +129,6 @@ export default function UserComplaints() {
       setSelectedComplaint(null);
       setRating(0);
       setFeedback('');
-    }
-  };
-
-  const handleDeleteComplaint = async (complaintId: string) => {
-    const shouldDelete = window.confirm('Delete this complaint? This action cannot be undone.');
-    if (!shouldDelete) return;
-
-    try {
-      const response = await api.put(`/consumer/complaint/delete/${complaintId}`);
-      alert(response.data.message || 'Complaint deleted successfully.');
-      setComplaints((current) => current.filter((item) => item.id !== complaintId));
-    } catch (error: any) {
-      console.error('Unable to delete complaint', error);
-      alert(error.response?.data?.message || 'Unable to delete complaint. Please try again.');
     }
   };
 
@@ -196,6 +177,8 @@ export default function UserComplaints() {
           <p className="text-gray-600">Track and manage all your service requests</p>
         </motion.div>
 
+        {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
+
         {/* Stats */}
         <div className="grid sm:grid-cols-3 gap-4 mb-8">
           {[
@@ -205,13 +188,13 @@ export default function UserComplaints() {
               color: 'from-amber-500 to-yellow-500',
             },
             {
-              label: 'Accepted',
-              count: complaints.filter((c) => c.status === 'accepted').length,
+              label: 'In Progress',
+              count: complaints.filter((c) => c.status === 'in-progress').length,
               color: 'from-blue-500 to-cyan-500',
             },
             {
-              label: 'Completed',
-              count: complaints.filter((c) => c.status === 'completed').length,
+              label: 'Resolved',
+              count: complaints.filter((c) => c.status === 'resolved').length,
               color: 'from-green-500 to-emerald-500',
             },
           ].map((stat, index) => (
@@ -230,7 +213,9 @@ export default function UserComplaints() {
           ))}
         </div>
 
-        {/* Complaints List */}
+        {loading ? (
+          <div className="text-center py-10 text-gray-500">Loading requests...</div>
+        ) : (
         <div className="space-y-4">
           {complaints.map((complaint, index) => {
             const statusConfig = getStatusConfig(complaint.status);
@@ -242,34 +227,20 @@ export default function UserComplaints() {
                 transition={{ delay: 0.2 + index * 0.05 }}
                 className="bg-white rounded-xl shadow-md p-6 border border-amber-100 hover:shadow-lg transition-shadow"
               >
-                <div className="flex items-start justify-between mb-4">
+                <div className="flex items-start justify-between mb-4 gap-3">
                   <div className="flex-1">
-                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
-                    <div>
+                    <div className="flex items-center gap-3 mb-2">
                       <h3 className="text-lg font-bold text-gray-900">
-                        {complaint.serviceTitle || complaint.companyName || 'Service Request'}
+                        {complaint.companyName}
                       </h3>
-                      <div className="text-sm text-gray-500 mt-1">
-                        {complaint.companyName || 'Provider'}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
                       <span
-                        className={`px-3 py-1 ${statusConfig.bg} ${statusConfig.border} ${statusConfig.color} rounded-full text-sm font-semibold border flex items-center gap-1 justify-center sm:self-start`}
+                        className={`px-3 py-1 ${statusConfig.bg} ${statusConfig.border} ${statusConfig.color} rounded-full text-sm font-semibold border flex items-center gap-1`}
                       >
                         <statusConfig.icon className="w-4 h-4" />
                         {statusConfig.label}
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteComplaint(complaint.id)}
-                        className="px-3 py-1 text-sm font-semibold text-red-600 border border-red-200 rounded-full hover:bg-red-50 transition-colors"
-                      >
-                        Delete
-                      </button>
                     </div>
-                  </div>
-                  <p className="text-gray-600 mb-3">{complaint.description}</p>
+                    <p className="text-gray-600 mb-3">{complaint.description}</p>
                     <div className="flex flex-wrap gap-4 text-sm text-gray-500">
                       <div className="flex items-center gap-1">
                         <MapPin className="w-4 h-4" />
@@ -285,22 +256,31 @@ export default function UserComplaints() {
                           Resolved: {formatDate(complaint.resolvedAt)}
                         </div>
                       )}
+                      {(complaint as any).technician && (
+                        <div className="flex items-center gap-1 text-blue-600">
+                          <HardHat className="w-4 h-4" />
+                          {(complaint as any).technician.name}
+                        </div>
+                      )}
                     </div>
                   </div>
+                  <Link
+                    to={`/user/requests/${complaint.id}`}
+                    className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 font-medium px-3 py-1.5 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors flex-shrink-0"
+                  >
+                    Details <ChevronRight className="w-3.5 h-3.5" />
+                  </Link>
                 </div>
 
-                {complaint.status === 'completed' && !complaint.rating && (
+                {complaint.status === 'resolved' && !complaint.rating && (
                   <div className="mt-4 pt-4 border-t border-gray-200">
-                    <button
-                      onClick={() => {
-                        setSelectedComplaint(complaint);
-                        setShowFeedbackModal(true);
-                      }}
-                      className="px-4 py-2 bg-gradient-to-r from-amber-500 to-yellow-500 text-white rounded-lg hover:from-amber-600 hover:to-yellow-600 transition-all shadow-md hover:shadow-lg flex items-center gap-2 font-semibold"
+                    <Link
+                      to={`/user/requests/${complaint.id}`}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-yellow-500 text-white rounded-lg hover:from-amber-600 hover:to-yellow-600 transition-all shadow-md hover:shadow-lg font-semibold text-sm"
                     >
                       <Star className="w-4 h-4" />
-                      Rate Service
-                    </button>
+                      Rate & Review
+                    </Link>
                   </div>
                 )}
 
@@ -331,7 +311,9 @@ export default function UserComplaints() {
           })}
         </div>
 
-        {complaints.length === 0 && (
+        )}
+
+        {complaints.length === 0 && !loading && (
           <div className="text-center py-12">
             <div className="text-6xl mb-4">📋</div>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">No requests yet</h3>

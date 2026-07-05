@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { motion } from 'motion/react';
 import { ArrowLeft, Building2, Mail, Phone, MapPin, FileText, Save } from 'lucide-react';
-import { categories, cities } from '../data/mockData';
+import { categories, cities } from '../lib/constants';
+import { apiRequest } from '../lib/api';
 
 export default function CompanyProfile() {
   const navigate = useNavigate();
@@ -11,6 +12,7 @@ export default function CompanyProfile() {
     email: '',
     phone: '',
     city: '',
+    category: '',
     description: '',
   });
 
@@ -21,32 +23,30 @@ export default function CompanyProfile() {
       return;
     }
 
+    // Load saved data
     const savedName = localStorage.getItem('companyName') || '';
     const savedEmail = localStorage.getItem('companyEmail') || '';
-    const savedPhone = localStorage.getItem('companyPhone') || '+91 98765 43210';
-    const savedCity = localStorage.getItem('companyCity') || 'Gandhi Nagar';
-    const savedDescription =
-      localStorage.getItem('companyDescription') ||
-      'Professional cleaning services for homes and offices.';
-
     setFormData({
       name: savedName,
       email: savedEmail,
-      phone: savedPhone,
-      city: savedCity,
-      description: savedDescription,
+      phone: '+91 98765 43210',
+      city: 'Gandhi Nagar',
+      category: 'cleaning',
+      description: 'Professional cleaning services for homes and offices.',
     });
   }, [navigate]);
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    localStorage.setItem('companyName', formData.name);
-    localStorage.setItem('companyEmail', formData.email);
-    localStorage.setItem('companyPhone', formData.phone);
-    localStorage.setItem('companyCity', formData.city);
-    localStorage.setItem('companyDescription', formData.description);
-    alert('Profile updated successfully!');
-    navigate('/company/dashboard');
+    try {
+      await apiRequest('/company/complaint/add', { method: 'POST', body: JSON.stringify({ company: localStorage.getItem('companyId') || '', title: formData.name, category: formData.category, description: formData.description, price: 0, location: formData.city, image: '', isAvailable: true }) }, 'company');
+      localStorage.setItem('companyName', formData.name);
+      localStorage.setItem('companyEmail', formData.email);
+      alert('Profile updated successfully!');
+      navigate('/company/dashboard');
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Unable to save profile');
+    }
   };
 
   return (
@@ -166,6 +166,23 @@ export default function CompanyProfile() {
               </div>
             </div>
 
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Service Category
+              </label>
+              <select
+                value={formData.category}
+                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all appearance-none"
+                required
+              >
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.icon} {cat.name}
+                  </option>
+                ))}
+              </select>
+            </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">

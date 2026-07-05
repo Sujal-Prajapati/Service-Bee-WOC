@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { motion } from 'motion/react';
 import { Mail, Lock, Building2, Phone, MapPin, FileText, ArrowLeft } from 'lucide-react';
-import { categories, cities } from '../data/mockData';
-import { api } from '../lib/api';
+import { categories, cities } from '../lib/constants';
+import { apiRequest, saveAuth } from '../lib/api';
 
 export default function CompanySignup() {
   const navigate = useNavigate();
@@ -12,31 +12,44 @@ export default function CompanySignup() {
     email: '',
     phone: '',
     city: '',
+    category: '',
     description: '',
     password: '',
   });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
+    setError('');
 
     try {
-      const response = await api.post('/company/register', {
-        name: formData.name,
-        email: formData.email,
-        phone: formData.phone,
-        password: formData.password,
-      });
+      const response = await apiRequest<{ success?: boolean; accessToken?: string; companyData?: { name?: string; email?: string } }>(
+        '/company/register',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            name: formData.name,
+            email: formData.email,
+            phone: formData.phone,
+            password: formData.password,
+          }),
+        },
+        'company'
+      );
 
-      localStorage.setItem('accessToken', response.data.accessToken || '');
-      localStorage.setItem('companyAuth', 'true');
-      localStorage.setItem('company', JSON.stringify(response.data.newCompany));
-      localStorage.setItem('companyEmail', response.data.newCompany.email || formData.email);
-      localStorage.setItem('companyName', response.data.newCompany.name || formData.name);
-      localStorage.setItem('companyPhone', response.data.newCompany.phone || formData.phone);
-
-      navigate('/company/dashboard');
-    } catch (error: any) {
-      alert(error?.response?.data?.message || 'Unable to register. Please try again.');
+      if (response.accessToken) {
+        saveAuth('company', response.accessToken, response.companyData || { name: formData.name, email: formData.email });
+        localStorage.setItem('companyAuth', 'true');
+        navigate('/company/dashboard');
+      } else {
+        throw new Error('Signup failed');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to create company');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -142,6 +155,24 @@ export default function CompanySignup() {
               </div>
             </div>
 
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Service Category
+              </label>
+              <select
+                value={formData.category}
+                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all appearance-none"
+                required
+              >
+                <option value="">Select Service Category</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.icon} {cat.name}
+                  </option>
+                ))}
+              </select>
+            </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -177,11 +208,14 @@ export default function CompanySignup() {
               </div>
             </div>
 
+            {error && <p className="text-sm text-red-600">{error}</p>}
+
             <button
               type="submit"
-              className="w-full py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:from-blue-600 hover:to-cyan-600 transition-all shadow-md hover:shadow-lg font-semibold"
+              disabled={loading}
+              className="w-full py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:from-blue-600 hover:to-cyan-600 transition-all shadow-md hover:shadow-lg font-semibold disabled:opacity-70"
             >
-              Register Company
+              {loading ? 'Creating account...' : 'Register Company'}
             </button>
           </form>
 

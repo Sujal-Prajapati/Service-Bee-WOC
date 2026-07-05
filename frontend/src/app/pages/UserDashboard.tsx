@@ -13,163 +13,149 @@ import {
   Send,
   Bell,
 } from 'lucide-react';
-import { api } from '../lib/api';
+import { categories, cities } from '../lib/constants';
+import { apiRequest } from '../lib/api';
 
-const categories = [
-  { id: 'cleaning', name: 'Cleaning Services', icon: '🧹' },
-  { id: 'plumbing', name: 'Plumbing', icon: '🔧' },
-  { id: 'electrical', name: 'Electrical', icon: '⚡' },
-  { id: 'carpenter', name: 'Carpentry', icon: '🔨' },
-  { id: 'painting', name: 'Painting', icon: '🎨' },
-  { id: 'appliance', name: 'Appliance Repair', icon: '🔌' },
-  { id: 'pest', name: 'Pest Control', icon: '🐛' },
-  { id: 'gardening', name: 'Gardening', icon: '🌿' },
-];
-
-type Service = {
+interface Company {
   id: string;
-  title: string;
+  name: string;
   category: string;
+  city: string;
+  rating: number;
+  totalReviews: number;
   description: string;
-  price?: string;
-  location?: string;
-  image?: string;
-  isAvailable?: boolean;
-  company?: {
-    id: string;
-    name: string;
-  };
-};
+  phone: string;
+  email: string;
+  image: string;
+}
 
 export default function UserDashboard() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCity, setSelectedCity] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
-  const [services, setServices] = useState<Service[]>([]);
-  const [filteredServices, setFilteredServices] = useState<Service[]>([]);
-  const [availableCities, setAvailableCities] = useState<string[]>([]);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [filteredCompanies, setFilteredCompanies] = useState<Company[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [showComplaintModal, setShowComplaintModal] = useState(false);
-  const [selectedService, setSelectedService] = useState<Service | null>(null);
+  const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [complaintData, setComplaintData] = useState({
     description: '',
     address: '',
+    expectedDate: '',
     pincode: '',
   });
 
   useEffect(() => {
-    const isAuth = localStorage.getItem('userAuth');
-    if (!isAuth) {
-      navigate('/user/login');
-      return;
-    }
-
-    const fetchServices = async () => {
+    const loadCompanies = async () => {
       try {
-        const response = await api.get('/consumer/service');
-        const serviceData = Array.isArray(response.data.services) ? response.data.services : [];
-
-        const parsedServices = serviceData.map((service: any) => ({
-          id: service._id || service.id || `${service.company?._id}-${service.title}`,
-          title: service.title || service.name || 'Service',
-          category: service.category || 'cleaning',
-          description: service.description || '',
-          price: service.price || '',
-          location: service.location || service.city || '',
-          image: service.image || '',
-          isAvailable: service.isAvailable ?? true,
-          company: service.company
-            ? {
-                id: service.company._id || service.company.id || '',
-                name: service.company.name || 'Provider',
-              }
-            : undefined,
+        const response = await apiRequest<{ success?: boolean; services?: Array<any> }>('/consumer/service', {}, 'user');
+        const services = response.services || [];
+        const mapped = services.map((service: any) => ({
+          id: service._id || service.id,
+          name: service.company?.name || service.title || 'Service Provider',
+          category: service.category,
+          city: service.location || 'Gandhi Nagar',
+          rating: 4.5,
+          totalReviews: 0,
+          description: service.description || 'Service available for booking.',
+          phone: service.phone || '+91 98765 43210',
+          email: service.email || 'contact@servicebee.com',
+          image: service.image || 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=900&q=80',
         }));
-
-        setServices(parsedServices);
-        setFilteredServices(parsedServices);
-        setAvailableCities(
-          Array.from(new Set(parsedServices.map((item) => item.location || '').filter(Boolean)))
-        );
-      } catch (error: any) {
-        console.error('Unable to load consumer services', error);
-        alert(error.response?.data?.message || 'Unable to load consumer services');
+        setCompanies(mapped);
+        setFilteredCompanies(mapped);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Unable to load services');
+      } finally {
+        setLoading(false);
       }
     };
 
-    fetchServices();
-  }, [navigate]);
+    loadCompanies();
+  }, []);
 
   useEffect(() => {
-    let filtered = services;
+    let filtered = companies;
 
     if (selectedCity) {
-      filtered = filtered.filter((service) => service.location === selectedCity);
+      filtered = filtered.filter((c) => c.city === selectedCity);
     }
 
     if (selectedCategory) {
-      filtered = filtered.filter((service) => service.category === selectedCategory);
+      filtered = filtered.filter((c) => c.category === selectedCategory);
     }
 
     if (searchQuery) {
       filtered = filtered.filter(
-        (service) =>
-          service.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          service.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          service.company?.name.toLowerCase().includes(searchQuery.toLowerCase())
+        (c) =>
+          c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          c.description.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 
-    setFilteredServices(filtered);
-  }, [services, selectedCity, selectedCategory, searchQuery]);
+    setFilteredCompanies(filtered);
+  }, [companies, selectedCity, selectedCategory, searchQuery]);
 
-  const handleLogout = async () => {
-    try {
-      await api.post('/consumer/logout');
-    } catch (error) {
-      console.warn('Logout request failed', error);
-    } finally {
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('userAuth');
-      localStorage.removeItem('userEmail');
-      localStorage.removeItem('userName');
-      localStorage.removeItem('user');
-      navigate('/');
-    }
+  const handleLogout = () => {
+    localStorage.removeItem('userAuth');
+    localStorage.removeItem('userEmail');
+    localStorage.removeItem('userName');
+    navigate('/');
   };
 
-  const handleViewServiceDetails = (service: Service) => {
-    navigate(`/user/service/${service.id}`, {
-      state: { service },
-    });
+  const loadServiceDetail = async (company: Company) => {
+    try {
+      const response = await apiRequest<{ success?: boolean; existingService?: any }>(
+        `/consumer/service/${company.id}`,
+        {},
+        'user'
+      );
+      const service = response.existingService;
+      if (service) {
+        setSelectedCompany({
+          ...company,
+          name: company.name,
+          category: service.category || company.category,
+          city: service.location || company.city,
+          description: service.description || company.description,
+          image: service.image || company.image,
+        });
+      } else {
+        setSelectedCompany(company);
+      }
+    } catch (err) {
+      console.error('Failed to load service detail', err);
+      setSelectedCompany(company);
+    }
+    setShowComplaintModal(true);
   };
 
   const handleSubmitComplaint = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!selectedService) {
-      return;
-    }
-
-    if (!complaintData.description || !complaintData.address || !complaintData.pincode) {
-      alert('Please complete all fields before submitting your request.');
-      return;
-    }
+    if (!selectedCompany) return;
 
     try {
-      const response = await api.post(`/consumer/complaint/${selectedService.id}`, {
-        description: complaintData.description,
-        address: complaintData.address,
-        pincode: parseInt(complaintData.pincode, 10),
-      });
-
-      alert(response.data.message || 'Complaint submitted successfully.');
+      await apiRequest(
+        `/consumer/request/${selectedCompany.id}`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            description: complaintData.description,
+            expectedDate: complaintData.expectedDate,
+            address: complaintData.address,
+            pincode: Number(complaintData.pincode),
+          }),
+        },
+        'user'
+      );
+      alert(`Request submitted to ${selectedCompany.name}`);
       setShowComplaintModal(false);
-      setComplaintData({ description: '', address: '', pincode: '' });
-      setSelectedService(null);
-    } catch (error: any) {
-      console.error('Unable to submit complaint', error);
-      alert(error.response?.data?.message || 'Unable to submit complaint. Please try again.');
+      setComplaintData({ description: '', address: '', expectedDate: '', pincode: '' });
+      setSelectedCompany(null);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Unable to submit request');
     }
   };
 
@@ -197,10 +183,10 @@ export default function UserDashboard() {
                 <FileText className="w-4 h-4" />
                 My Complaints
               </Link>
-              <button className="relative p-2 text-amber-700 hover:bg-amber-50 rounded-lg transition-colors">
+              <Link to="/user/notifications" className="relative p-2 text-amber-700 hover:bg-amber-50 rounded-lg transition-colors">
                 <Bell className="w-5 h-5" />
                 <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-              </button>
+              </Link>
               <div className="flex items-center gap-3 px-4 py-2 bg-amber-50 rounded-lg">
                 <div className="w-8 h-8 bg-gradient-to-br from-amber-400 to-yellow-500 rounded-full flex items-center justify-center text-white font-semibold">
                   {userName.charAt(0).toUpperCase()}
@@ -250,7 +236,7 @@ export default function UserDashboard() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search services..."
+                placeholder="Search companies..."
                 className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
               />
             </div>
@@ -262,7 +248,7 @@ export default function UserDashboard() {
                 className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all appearance-none"
               >
                 <option value="">All Cities</option>
-                {availableCities.map((city) => (
+                {cities.map((city) => (
                   <option key={city} value={city}>
                     {city}
                   </option>
@@ -307,47 +293,46 @@ export default function UserDashboard() {
           )}
         </motion.div>
 
-        {/* Services Grid */}
+        {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
+
+        {/* Companies Grid */}
+        {loading ? (
+          <div className="text-center py-10 text-gray-500">Loading services...</div>
+        ) : (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredServices.map((service, index) => (
+          {filteredCompanies.map((company, index) => (
             <motion.div
-              key={service.id}
+              key={company.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 + index * 0.05 }}
-              className="bg-white rounded-xl shadow-md overflow-hidden border border-amber-100 hover:shadow-xl transition-shadow cursor-pointer"
-              onClick={() => handleViewServiceDetails(service)}
+              className="bg-white rounded-xl shadow-md overflow-hidden border border-amber-100 hover:shadow-xl transition-shadow"
             >
-              {service.image ? (
-                <img
-                  src={service.image}
-                  alt={service.title}
-                  className="w-full h-48 object-cover"
-                />
-              ) : (
-                <div className="w-full h-48 bg-amber-100 flex items-center justify-center text-amber-600 text-sm">
-                  No image provided
-                </div>
-              )}
+              <img
+                src={company.image}
+                alt={company.name}
+                className="w-full h-48 object-cover"
+              />
               <div className="p-6">
                 <div className="flex items-start justify-between mb-2">
-                  <div>
-                    <h3 className="text-xl font-bold text-gray-900">{service.company?.name || 'Service Provider'}</h3>
-                    <div className="text-sm text-gray-500">{service.title}</div>
-                  </div>
+                  <h3 className="text-xl font-bold text-gray-900">{company.name}</h3>
                   <span className="text-2xl">
-                    {categories.find((c) => c.id === service.category)?.icon || '🛠️'}
+                    {categories.find((c) => c.id === company.category)?.icon}
                   </span>
                 </div>
-                <p className="text-gray-600 text-sm mb-3 line-clamp-2">{service.description}</p>
+                <div className="flex items-center gap-1 mb-3">
+                  <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+                  <span className="font-semibold text-gray-900">{company.rating}</span>
+                  <span className="text-gray-500 text-sm">({company.totalReviews} reviews)</span>
+                </div>
+                <p className="text-gray-600 text-sm mb-3 line-clamp-2">{company.description}</p>
                 <div className="flex items-center gap-2 text-sm text-gray-500 mb-4">
                   <MapPin className="w-4 h-4" />
-                  {service.location || 'Location not available'}
+                  {company.city}
                 </div>
                 <button
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    setSelectedService(service);
+                  onClick={() => {
+                    setSelectedCompany(company);
                     setShowComplaintModal(true);
                   }}
                   className="w-full py-2 bg-gradient-to-r from-amber-500 to-yellow-500 text-white rounded-lg hover:from-amber-600 hover:to-yellow-600 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 font-semibold"
@@ -355,25 +340,24 @@ export default function UserDashboard() {
                   <Plus className="w-4 h-4" />
                   Submit Request
                 </button>
-                <div className="mt-3 text-sm text-amber-700 font-medium text-center">
-                  Tap card to view service details
-                </div>
               </div>
             </motion.div>
           ))}
         </div>
 
-        {filteredServices.length === 0 && (
+        )}
+
+        {filteredCompanies.length === 0 && !loading && (
           <div className="text-center py-12">
             <div className="text-6xl mb-4">🔍</div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">No services found</h3>
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">No companies found</h3>
             <p className="text-gray-600">Try adjusting your filters or search query</p>
           </div>
         )}
       </div>
 
       {/* Complaint Modal */}
-      {showComplaintModal && selectedService && (
+      {showComplaintModal && selectedCompany && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
@@ -385,8 +369,8 @@ export default function UserDashboard() {
               <button
                 onClick={() => {
                   setShowComplaintModal(false);
-                  setSelectedService(null);
-                  setComplaintData({ description: '', address: '', pincode: '' });
+                  setSelectedCompany(null);
+                  setComplaintData({ description: '', address: '', expectedDate: '', pincode: '' });
                 }}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               >
@@ -395,20 +379,14 @@ export default function UserDashboard() {
             </div>
             <div className="mb-6 p-4 bg-amber-50 rounded-lg border border-amber-100">
               <div className="flex items-center gap-3">
-                {selectedService.image ? (
-                  <img
-                    src={selectedService.image}
-                    alt={selectedService.title}
-                    className="w-12 h-12 rounded-lg object-cover"
-                  />
-                ) : (
-                  <div className="w-12 h-12 rounded-lg bg-amber-100 flex items-center justify-center text-amber-600">
-                    🛠️
-                  </div>
-                )}
+                <img
+                  src={selectedCompany.image}
+                  alt={selectedCompany.name}
+                  className="w-12 h-12 rounded-lg object-cover"
+                />
                 <div>
-                  <div className="font-semibold text-gray-900">{selectedService.company?.name || 'Service Provider'}</div>
-                  <div className="text-sm text-gray-600">{selectedService.title}</div>
+                  <div className="font-semibold text-gray-900">{selectedCompany.name}</div>
+                  <div className="text-sm text-gray-600">{selectedCompany.city}</div>
                 </div>
               </div>
             </div>
@@ -443,20 +421,39 @@ export default function UserDashboard() {
                   required
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Pincode
-                </label>
-                <input
-                  type="text"
-                  value={complaintData.pincode}
-                  onChange={(e) =>
-                    setComplaintData({ ...complaintData, pincode: e.target.value })
-                  }
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
-                  placeholder="Enter your area pincode"
-                  required
-                />
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Preferred Date
+                  </label>
+                  <input
+                    type="date"
+                    value={complaintData.expectedDate}
+                    onChange={(e) =>
+                      setComplaintData({ ...complaintData, expectedDate: e.target.value })
+                    }
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Pincode
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={6}
+                    value={complaintData.pincode}
+                    onChange={(e) =>
+                      setComplaintData({ ...complaintData, pincode: e.target.value })
+                    }
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
+                    placeholder="380001"
+                    required
+                  />
+                </div>
               </div>
               <button
                 type="submit"

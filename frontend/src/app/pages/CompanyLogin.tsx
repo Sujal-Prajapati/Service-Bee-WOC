@@ -2,56 +2,41 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { motion } from 'motion/react';
 import { Mail, Lock, ArrowLeft, Building2 } from 'lucide-react';
-import { api } from '../lib/api';
-
-const decodeJwtPayload = (token: string) => {
-  try {
-    const base64Url = token.split('.')[1] || '';
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(
-      Array.from(atob(base64))
-        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join('')
-    );
-    return JSON.parse(jsonPayload);
-  } catch {
-    return null;
-  }
-};
+import { apiRequest, saveAuth } from '../lib/api';
 
 export default function CompanyLogin() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
+    setError('');
 
     try {
-      const response = await api.post('/company/login', {
-        email,
-        password,
-      });
+      const response = await apiRequest<{ success?: boolean; accessToken?: string }>(
+        '/company/login',
+        {
+          method: 'POST',
+          body: JSON.stringify({ email, password }),
+        },
+        'company'
+      );
 
-      const token = response.data?.accessToken;
-      const payload = token ? decodeJwtPayload(token) : null;
-      const companyInfo = {
-        id: payload?.id || '',
-        email,
-        name: 'Company',
-      };
-
-      localStorage.setItem('accessToken', token || '');
-      localStorage.setItem('companyAuth', 'true');
-      localStorage.setItem('company', JSON.stringify(companyInfo));
-      localStorage.setItem('companyId', companyInfo.id);
-      localStorage.setItem('companyEmail', companyInfo.email);
-      localStorage.setItem('companyName', companyInfo.name);
-      localStorage.setItem('companyPhone', '');
-
-      navigate('/company/dashboard');
-    } catch (error: any) {
-      alert(error?.response?.data?.message || 'Unable to login. Please try again.');
+      if (response.accessToken) {
+        saveAuth('company', response.accessToken, { name: 'Company', email });
+        localStorage.setItem('companyAuth', 'true');
+        navigate('/company/dashboard');
+      } else {
+        throw new Error('Login failed');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to sign in');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -114,11 +99,14 @@ export default function CompanyLogin() {
               </div>
             </div>
 
+            {error && <p className="text-sm text-red-600">{error}</p>}
+
             <button
               type="submit"
-              className="w-full py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:from-blue-600 hover:to-cyan-600 transition-all shadow-md hover:shadow-lg font-semibold"
+              disabled={loading}
+              className="w-full py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:from-blue-600 hover:to-cyan-600 transition-all shadow-md hover:shadow-lg font-semibold disabled:opacity-70"
             >
-              Sign In
+              {loading ? 'Signing in...' : 'Sign In'}
             </button>
           </form>
 

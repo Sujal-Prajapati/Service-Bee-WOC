@@ -1,5 +1,8 @@
 const Service = require('../../models/service');
 const Company = require('../../models/company');
+const Request = require('../../models/request');
+const Notification = require('../../models/notification');
+
 const postAddService = async (req,res)=>{
     try{
         const {company,title,category,description,price,location,image,isAvailable} = req.body;
@@ -12,6 +15,15 @@ const postAddService = async (req,res)=>{
         const existingCompany = await Company.findById(company);
         if(!existingCompany){
             return res.status(404).json({message : "Company not found"});
+        }
+        const existingService = await Service.findOne({
+            company : req.company,
+            title : title
+        });
+        if(existingService){
+            return res.status(409).json({
+                message : "Service alread exist"
+            });
         }
 
         const newService = Service.create({
@@ -86,7 +98,7 @@ const postEditService = async (req,res)=>{
 const postDeleteService = async (req,res)=>{
     try{
         const {id} = req.params;
-        
+        const { title, message } = req.body;
 
         var existingService = await Service.findById(id);
         if(!existingService){
@@ -98,6 +110,24 @@ const postDeleteService = async (req,res)=>{
             return res.status(403).json({message:"Unauthorized"});
         }
 
+        const requests = await Request.find({
+            service : existingService._id,
+            status : "inProgress"
+        });
+
+        for(const request of requests){
+            await Notification.create({
+                consumer : request.consumer,
+                company : existingService.company,
+                request : request._id,
+                type: 'status_update',
+                title: title || 'Service cancelled',
+                message: message || 'Your accepted service request has been cancelled because the service was removed.',
+            });
+            request.status = "cancelled";
+            await request.save();
+        }
+        
         await Service.findByIdAndDelete(id);
 
         res.status(200).json({
@@ -109,7 +139,7 @@ const postDeleteService = async (req,res)=>{
     }
     catch(err){
         res.status(500).json({
-            seccess:true,
+            success:false,
             message: err.message
         });
     }

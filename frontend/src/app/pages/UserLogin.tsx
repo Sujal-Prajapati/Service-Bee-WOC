@@ -2,53 +2,42 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { motion } from 'motion/react';
 import { Mail, Lock, ArrowLeft } from 'lucide-react';
-import { api } from '../lib/api';
+import { apiRequest, saveAuth } from '../lib/api';
 
 export default function UserLogin() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showOTP, setShowOTP] = useState(false);
-  const [otp, setOTP] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleLogin = async (e: React.FormEvent) => {
-
     e.preventDefault();
+    setLoading(true);
+    setError('');
 
     try {
+      const response = await apiRequest<{ success?: boolean; accessToken?: string; consumerData?: { name?: string; email?: string } }>(
+        '/consumer/login',
+        {
+          method: 'POST',
+          body: JSON.stringify({ email, password }),
+        },
+        'user'
+      );
 
-      const response = await api.post('/consumer/login', {
-        email,
-        password,
-      });
-
-      console.log(response.data);
-
-      const consumer = response.data.consumer || response.data.consumerData || null;
-      if (!consumer) {
-        throw new Error('Unexpected login response');
+      if (response.accessToken) {
+        saveAuth('user', response.accessToken, response.consumerData || { name: email, email });
+        localStorage.setItem('userAuth', 'true');
+        navigate('/user/dashboard');
+      } else {
+        throw new Error('Login failed');
       }
-
-      localStorage.setItem('accessToken', response.data.accessToken || '');
-      localStorage.setItem('userAuth', 'true');
-      localStorage.setItem('user', JSON.stringify(consumer));
-      localStorage.setItem('userEmail', consumer.email || email);
-      localStorage.setItem('userName', consumer.name || 'User');
-
-      navigate('/user/dashboard');
-
-    } catch (error: any) {
-      const message = error?.response?.data?.message || error?.message || 'Unable to login. Please try again.';
-      alert(message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to sign in');
+    } finally {
+      setLoading(false);
     }
-
-  };
-  const handleVerifyOTP = (e: React.FormEvent) => {
-    e.preventDefault();
-    // Mock OTP verification
-    localStorage.setItem('userAuth', 'true');
-    localStorage.setItem('userEmail', email);
-    navigate('/user/dashboard');
   };
 
   return (
@@ -75,85 +64,51 @@ export default function UserLogin() {
             <p className="text-gray-600">Sign in to your user account</p>
           </div>
 
-          {!showOTP ? (
-            <form onSubmit={handleLogin} className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Email Address
-                </label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
-                    placeholder="you@example.com"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Password
-                </label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
-                    placeholder="••••••••"
-                    required
-                  />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                className="w-full py-3 bg-gradient-to-r from-amber-500 to-yellow-500 text-white rounded-lg hover:from-amber-600 hover:to-yellow-600 transition-all shadow-md hover:shadow-lg font-semibold"
-              >
-                Continue with OTP
-              </button>
-            </form>
-          ) : (
-            <form onSubmit={handleVerifyOTP} className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Enter OTP
-                </label>
-                <p className="text-sm text-gray-600 mb-4">
-                  We've sent a verification code to {email}
-                </p>
+          <form onSubmit={handleLogin} className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Email Address
+              </label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
-                  type="text"
-                  value={otp}
-                  onChange={(e) => setOTP(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all text-center text-2xl tracking-widest"
-                  placeholder="000000"
-                  maxLength={6}
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
+                  placeholder="you@example.com"
                   required
                 />
               </div>
+            </div>
 
-              <button
-                type="submit"
-                className="w-full py-3 bg-gradient-to-r from-amber-500 to-yellow-500 text-white rounded-lg hover:from-amber-600 hover:to-yellow-600 transition-all shadow-md hover:shadow-lg font-semibold"
-              >
-                Verify & Login
-              </button>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Password
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
+            </div>
 
-              <button
-                type="button"
-                onClick={() => setShowOTP(false)}
-                className="w-full py-2 text-amber-600 hover:text-amber-700 transition-colors"
-              >
-                Change Email
-              </button>
-            </form>
-          )}
+            {error && <p className="text-sm text-red-600">{error}</p>}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3 bg-gradient-to-r from-amber-500 to-yellow-500 text-white rounded-lg hover:from-amber-600 hover:to-yellow-600 transition-all shadow-md hover:shadow-lg font-semibold disabled:opacity-70"
+            >
+              {loading ? 'Signing in...' : 'Sign In'}
+            </button>
+          </form>
 
           <div className="mt-6 text-center">
             <p className="text-gray-600">

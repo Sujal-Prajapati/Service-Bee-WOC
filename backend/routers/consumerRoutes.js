@@ -6,7 +6,9 @@ const consumerAuth = require('../controllers/consumer/consumerAuthController');
 
 const consumerService =  require('../controllers/consumer/consumerServiceController');
 
-const consumerComplaint = require('../controllers/consumer/consumerComplaintController');
+const consumerRequest = require('../controllers/consumer/consumerRequestController');
+
+const consumerNotification = require('../controllers/consumer/consumerNotificationController');
 
 const authConsumer = require('../middlewares/authConsumer');
 
@@ -22,12 +24,26 @@ consumerRouter.post('/refresh-token',authConsumer,consumerAuth.refreshAccessToke
 
 consumerRouter.get('/service',authConsumer,consumerService.getConsumerServices);
 
-consumerRouter.put('/service/:id',authConsumer,consumerService.getServiceDetail);
+consumerRouter.get('/service/:id',authConsumer,consumerService.getServiceDetail);
 
-consumerRouter.post('/complaint/:serviceId',authConsumer,consumerComplaint.postAddComplaint);
+consumerRouter.post('/request/:serviceId',authConsumer,consumerRequest.postAddRequest);
 
-consumerRouter.get('/complaint',authConsumer,consumerComplaint.getAllComplaints);
+consumerRouter.get('/request',authConsumer,consumerRequest.getAllRequests);
 
-consumerRouter.put('/complaint/delete/:compId',authConsumer,consumerComplaint.deleteConsumerComplaint);
+consumerRouter.get('/request/:requestId',authConsumer,consumerRequest.getConsumerRequestDetail);
+
+consumerRouter.put('/request/delete/:requestId',authConsumer,consumerRequest.deleteConsumerRequest);
+
+consumerRouter.get('/notification',authConsumer,consumerNotification.getNotifications);
+
+consumerRouter.get('/notification/unread',authConsumer,consumerNotification.getUnreadNotifications);
+
+consumerRouter.patch('/notification/:notId/read',authConsumer,consumerNotification.patchMarkNotificationRead);
+
+
+
+// consumerRouter.get('/notification/:notId',authConsumer,consumerNotification.getNotificationDetail);
+
+
 
 module.exports = consumerRouter;
