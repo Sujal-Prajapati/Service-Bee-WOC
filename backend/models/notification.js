@@ -11,23 +11,28 @@ const notificationSchema = mongoose.Schema({
         ref : "Company",
         required : false
     },
+    recipientType: {
+        type: String,
+        enum: ['consumer', 'company'],
+        required: true,
+    },
     request : {
         type : mongoose.Schema.Types.ObjectId,
         ref : "Request",
         required : true
     },
-    type : {
-        type : String,
-        enum : ['status_update','new_request','review_received','technician_assigned','request_accepted'],
-        default : 'status_update'
-    },
+    // type : {
+    //     type : String,
+    //     enum : ['status_update','new_request','review_received','technician_assigned','request_accepted'],
+    //     default : 'status_update'
+    // },
     title : {
         type : String,
-        required : true
+        // required : true
     },
     message : {
         type : String,
-        required : true
+        // required : true
     },
     isRead : {
         type : Boolean,

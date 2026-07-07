@@ -10,6 +10,8 @@ const consumerRequest = require('../controllers/consumer/consumerRequestControll
 
 const consumerNotification = require('../controllers/consumer/consumerNotificationController');
 
+const consumerReview = require('../controllers/consumer/consumerReviewController')
+
 const authConsumer = require('../middlewares/authConsumer');
 
 
@@ -44,6 +46,11 @@ consumerRouter.patch('/notification/:notId/read',authConsumer,consumerNotificati
 
 // consumerRouter.get('/notification/:notId',authConsumer,consumerNotification.getNotificationDetail);
 
+consumerRouter.patch('/notification/read-all',authConsumer,consumerNotification.patchMarkAllNotificationRead);
+
+consumerRouter.post('/review/:reqId',authConsumer,consumerReview.postCreateServiceReview);
+
+consumerRouter.post('/review/request/:reqId',authConsumer,consumerReview.getRequestReview);
 
 
 module.exports = consumerRouter;

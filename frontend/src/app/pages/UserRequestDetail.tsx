@@ -55,7 +55,10 @@ export default function UserRequestDetail() {
   const [hoverRating, setHoverRating] = useState(0);
   const [feedback, setFeedback] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [loadingReview, setLoadingReview] = useState(false);
+  const [reviewError, setReviewError] = useState('');
 
+  // ── Load complaint details ──
   useEffect(() => {
     const isAuth = localStorage.getItem('userAuth');
     if (!isAuth) {
@@ -97,6 +100,63 @@ export default function UserRequestDetail() {
     loadComplaint();
   }, [id, navigate]);
 
+  // ── Fetch existing review when request is resolved ──
+  // ── Fetch existing review when request is resolved ──
+  useEffect(() => {
+    if (complaint?.status === 'resolved' && id && !submitted) {
+      const fetchReview = async () => {
+        setLoadingReview(true);
+        try {
+          const response = await apiRequest<{ review?: { rating: number; comment: string } }>(
+            `/consumer/review/request/${id}`,
+            { method: 'POST' },
+            'user'
+          );
+          if (response.review) {
+            setRating(response.review.rating);
+            setFeedback(response.review.comment || '');
+            setSubmitted(true);
+          }
+        } catch (err: any) {
+          // If the error is "Not Found", that just means no review yet – ignore it.
+          if (err?.message?.toLowerCase().includes('not found')) {
+            setReviewError(''); // clear error
+          } else {
+            setReviewError(err instanceof Error ? err.message : 'Could not load review');
+          }
+        } finally {
+          setLoadingReview(false);
+        }
+      };
+      fetchReview();
+    }
+  }, [complaint?.status, id, submitted]); // ✅ added `submitted` as dependency
+
+  // ── Submit review ──
+  // ── Submit review ──
+  const handleSubmitReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (rating === 0) return;
+    try {
+      await apiRequest(`/consumer/review/${id}`, {
+        method: 'POST',
+        body: JSON.stringify({ rating, comment: feedback }), // ← change here
+      }, 'user');
+
+
+      // Update local state immediately (optimistic update)
+      setComplaint((prev) => prev ? { ...prev, rating, feedback } : prev);
+      setSubmitted(true);
+      setReviewError(''); // clear any previous error
+    } catch (err: any) {
+      // Show a friendly error
+      const message = err?.message || 'Failed to submit review. Please try again.';
+      setReviewError(message);
+      console.error('Review submission error:', err);
+    }
+  };
+
+  // ── Render helpers ──
   if (!complaint) {
     return (
       <div className="min-h-screen bg-amber-50 flex items-center justify-center">
@@ -123,18 +183,11 @@ export default function UserRequestDetail() {
   const formatTime = (d: string) =>
     new Date(d).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 
-  const handleSubmitReview = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (rating === 0) return;
-    setComplaint((prev) => prev ? { ...prev, rating, feedback } : prev);
-    setSubmitted(true);
-  };
-
   const ratingLabels = ['', 'Poor', 'Fair', 'Good', 'Great', 'Excellent'];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-white to-yellow-50">
-      {/* Header */}
+      {/* Header (unchanged) */}
       <header className="bg-white border-b border-amber-100 sticky top-0 z-40 shadow-sm">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center h-14 gap-3">
@@ -162,7 +215,7 @@ export default function UserRequestDetail() {
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-5">
 
-        {/* ── Status timeline ── */}
+        {/* ── Status timeline (unchanged) ── */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
@@ -170,7 +223,6 @@ export default function UserRequestDetail() {
         >
           <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-6">Request Status</h2>
           <div className="relative">
-            {/* connector line */}
             <div className="absolute top-5 left-5 right-5 h-0.5 bg-gray-100" />
             <div
               className="absolute top-5 left-5 h-0.5 bg-gradient-to-r from-amber-400 to-yellow-400 transition-all duration-700"
@@ -207,7 +259,6 @@ export default function UserRequestDetail() {
             </div>
           </div>
 
-          {/* Timestamps */}
           <div className="mt-6 pt-4 border-t border-gray-50 flex flex-wrap gap-4 text-xs text-gray-400">
             <span className="flex items-center gap-1">
               <Calendar className="w-3.5 h-3.5" />
@@ -229,7 +280,7 @@ export default function UserRequestDetail() {
         </motion.div>
 
         <div className="grid md:grid-cols-2 gap-5">
-          {/* ── Request details ── */}
+          {/* ── Request details (unchanged) ── */}
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
@@ -237,7 +288,6 @@ export default function UserRequestDetail() {
             className="bg-white rounded-2xl border border-amber-100 shadow-sm p-5 space-y-4"
           >
             <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Request Details</h2>
-
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-amber-50 border border-amber-100 rounded-xl flex items-center justify-center text-2xl">
                 {cat?.icon ?? '🔧'}
@@ -259,17 +309,14 @@ export default function UserRequestDetail() {
                 )}
               </div>
             </div>
-
             <div>
               <p className="text-xs text-gray-400 mb-1">Description</p>
               <p className="text-sm text-gray-800 leading-relaxed">{complaint.description}</p>
             </div>
-
             <div className="flex items-start gap-2">
               <MapPin className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
               <p className="text-sm text-gray-600">{complaint.address}</p>
             </div>
-
             {complaint.expectedDate && (
               <div className="grid grid-cols-2 gap-4 text-sm text-gray-600 pt-2">
                 <div>
@@ -282,14 +329,13 @@ export default function UserRequestDetail() {
                 </div>
               </div>
             )}
-
             <div className="flex items-center gap-2 text-xs text-gray-400 pt-2 border-t border-gray-50">
               <Building2 className="w-3.5 h-3.5" />
               <span className="font-medium text-gray-700">{complaint.companyName}</span>
             </div>
           </motion.div>
 
-          {/* ── Technician info ── */}
+          {/* ── Technician info (unchanged) ── */}
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
@@ -297,7 +343,6 @@ export default function UserRequestDetail() {
             className="bg-white rounded-2xl border border-amber-100 shadow-sm p-5"
           >
             <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Assigned Technician</h2>
-
             {complaint.technician ? (
               <div className="space-y-4">
                 <div className="flex items-center gap-3">
@@ -312,7 +357,6 @@ export default function UserRequestDetail() {
                     </p>
                   </div>
                 </div>
-
                 <div className="space-y-2.5">
                   <a
                     href={`tel:${complaint.technician.phone}`}
@@ -328,7 +372,6 @@ export default function UserRequestDetail() {
                       </p>
                     </div>
                   </a>
-
                   <a
                     href={`tel:${complaint.companyPhone || '+919876543210'}`}
                     className="flex items-center gap-3 p-3 bg-amber-50 rounded-xl hover:bg-amber-100 transition-colors group cursor-pointer"
@@ -344,7 +387,6 @@ export default function UserRequestDetail() {
                     </div>
                   </a>
                 </div>
-
                 {complaint.estimatedArrival && complaint.status === 'in-progress' && (
                   <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-100 rounded-xl">
                     <Navigation className="w-4 h-4 text-green-600 flex-shrink-0" />
@@ -382,11 +424,15 @@ export default function UserRequestDetail() {
             className="bg-white rounded-2xl border border-amber-100 shadow-sm p-6"
           >
             <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">
-              {complaint.rating || submitted ? 'Your Review' : 'Rate & Review This Service'}
+              {submitted ? 'Your Review' : 'Rate & Review This Service'}
             </h2>
 
-            {(complaint.rating || submitted) ? (
-              /* Already rated */
+            {loadingReview ? (
+              <p className="text-sm text-gray-500">Loading your review…</p>
+            ) : reviewError ? (
+              <p className="text-sm text-red-500">{reviewError}</p>
+            ) : submitted ? (
+              // Already reviewed – show the review
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
                   <div className="flex gap-0.5">
@@ -414,7 +460,7 @@ export default function UserRequestDetail() {
                 </p>
               </div>
             ) : (
-              /* Rating form */
+              // Review form
               <form onSubmit={handleSubmitReview} className="space-y-5">
                 <div>
                   <p className="text-sm text-gray-600 mb-3">How was your experience with {complaint.companyName}?</p>

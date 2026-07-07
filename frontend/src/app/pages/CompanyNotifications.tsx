@@ -83,16 +83,31 @@ export default function CompanyNotifications() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // Check auth on mount
   useEffect(() => {
     const isAuth = localStorage.getItem('companyAuth');
     if (!isAuth) {
       navigate('/company/login');
-      return;
     }
+  }, [navigate]);
 
+  // Fetch notifications whenever filter changes
+  useEffect(() => {
     const loadNotifications = async () => {
+      setLoading(true);
+      setError('');
       try {
-        const response = await apiRequest<{ notifications?: Array<any> }>('/company/notification', {}, 'company');
+        // Determine endpoint based on filter
+        const endpoint = filter === 'all' 
+          ? '/company/notification' 
+          : '/company/notification/unread';
+
+        const response = await apiRequest<{ notifications?: Array<any> }>(
+          endpoint,
+          {},
+          'company'
+        );
+
         const mapped = (response.notifications || []).map((notification: any) => ({
           id: notification._id || notification.id,
           type: notification.type || 'status_update',
@@ -103,6 +118,7 @@ export default function CompanyNotifications() {
           complaintId: notification.request || notification.complaint,
           for: 'company' as const,
         }));
+
         setNotifications(mapped);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unable to load notifications');
@@ -112,7 +128,7 @@ export default function CompanyNotifications() {
     };
 
     loadNotifications();
-  }, [navigate]);
+  }, [filter, navigate]); // Re-fetch when filter changes
 
   const handleLogout = () => {
     localStorage.removeItem('companyAuth');
@@ -124,20 +140,36 @@ export default function CompanyNotifications() {
   const companyName = localStorage.getItem('companyName') || 'Company';
   const unreadCount = notifications.filter((n) => !n.read).length;
 
-  const markAllRead = () =>
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  const markAllRead = async () => {
+    try {
+      await apiRequest('/company/notification/read-all', { method: 'PATCH' }, 'company');
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    } catch (err) {
+      console.error('Failed to mark all as read', err);
+    }
+  };
 
-  const markRead = (id: string) =>
-    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+  const markRead = async (id: string) => {
+    try {
+      await apiRequest(`/company/notification/${id}/read`, { method: 'PATCH' }, 'company');
+      // Update local state optimistically
+      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+    } catch (err) {
+      console.error('Failed to mark as read', err);
+      // Optionally revert state
+    }
+  };
 
   const dismiss = (id: string) =>
     setNotifications((prev) => prev.filter((n) => n.id !== id));
 
+  // Display all or filter unread? Since we already fetch only unread when filter='unread',
+  // but we might still want to show only unread from the fetched list. We'll keep the local filter.
   const displayed = filter === 'unread' ? notifications.filter((n) => !n.read) : notifications;
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
+      {/* Header (unchanged) */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-14">

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo ,useCallback, useRef  } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -69,6 +69,7 @@ const statusMeta = {
 };
 
 export default function CompanyDashboard() {
+  console.log('Dashboard mounted'); 
   const navigate = useNavigate();
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [loading, setLoading] = useState(true);
@@ -77,7 +78,16 @@ export default function CompanyDashboard() {
   const [search, setSearch] = useState('');
   const [catFilter, setCatFilter] = useState('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [unreadNotifications, setUnreadNotifications] = useState<number>(0);
 
+
+  const [stats, setStats] = useState<{ total: number; pending: number; inProgress: number; resolved: number; rejected: number }>({
+      total: 0,
+      pending: 0,
+      inProgress: 0,
+      resolved: 0,
+      rejected: 0
+  });
   // Accept modal state
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
   const [acceptForm, setAcceptForm] = useState<AcceptForm>({
@@ -89,59 +99,181 @@ export default function CompanyDashboard() {
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectForm, setRejectForm] = useState<RejectForm>({ reason: '' });
 
-  const loadRequests = async () => {
-    try {
-      const response = await apiRequest<{ success?: boolean; requests?: Array<any> }>('/company/request', {}, 'company');
-      const mapped = (response.requests || []).map((request: any) => {
-        const status: Complaint['status'] = request.status === 'inProgress'
-          ? 'in-progress'
-          : request.status === 'resolved'
-          ? 'resolved'
-          : request.status === 'rejected' || request.status === 'cancelled'
-          ? 'rejected'
-          : 'pending';
-        const technicianName = request.technician?.name || request.technicianName;
-        return {
-          id: request._id || request.id,
-          userName: request.consumer?.name || 'Customer',
-          userPhone: request.consumer?.phone || '',
-          category: request.service?.category || 'cleaning',
-          description: request.description || request.service?.description || 'Service request',
-          address: request.address || '',
-          status,
-          priority: 'medium' as Complaint['priority'],
-          createdAt: request.createdAt || new Date().toISOString(),
-          resolvedAt: request.updatedAt,
-          rejectedAt: request.updatedAt,
-          rejectedReason: request.rejectedReason,
-          technician: technicianName
-            ? {
-                name: technicianName,
-                phone: request.technician?.phone || request.technicianPhone || '',
-                role: request.technician?.role || request.technicianRole || '',
-                avatar: technicianName.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2),
-              }
-            : undefined,
-          estimatedArrival: request.companyExpectedDate,
-        };
-      });
+  const prevTabRef = useRef<string | null>(null);
+  const prevSearchRef = useRef<string | null>(null);
+
+
+  const isFetchingRef = useRef(false);
+
+
+
+  const loadRequests = useCallback(async (status?: string, search?: string) => {
+      try {
+          setLoading(true);
+          const params = new URLSearchParams();
+          if (status && status !== 'all') params.append('status', status);
+          if (search?.trim()) params.append('search', search.trim());
+          const query = params.toString() ? `?${params.toString()}` : '';
+
+          const response = await apiRequest<{
+              success?: boolean;
+              requests?: Array<any>;
+              counts?: { total: number; pending: number; inProgress: number; resolved: number; rejected: number };
+          }>(`/company/request${query}`, {}, 'company');
+
+          console.log('📦 Raw response:', response);
+        console.log('📋 Requests array:', response.requests);
+        console.log('📊 Counts:', response.counts);
+
+          // Map requests
+          const mapped = (response.requests || []).map((request: any) => {
+              const status: Complaint['status'] = request.status === 'inProgress'
+                  ? 'in-progress'
+                  : request.status === 'resolved' ? 'resolved'
+                  : request.status === 'rejected' || request.status === 'cancelled' ? 'rejected'
+                  : 'pending';
+              const technicianName = request.technician?.name || request.technicianName;
+              return {
+                  id: request._id || request.id,
+                  userName: request.consumer?.name || 'Customer',
+                  userPhone: request.consumer?.phone || '',
+                  category: request.service?.category || 'cleaning',
+                  description: request.description || request.service?.description || 'Service request',
+                  address: request.address || '',
+                  status,
+                  priority: 'medium' as Complaint['priority'],
+                  createdAt: request.createdAt || new Date().toISOString(),
+                  resolvedAt: status === 'resolved' ? request.updatedAt : undefined,
+                  rejectedAt: status === 'rejected' ? request.updatedAt : undefined,
+                  rejectedReason: request.rejectedReason,
+                  technician: technicianName ? {
+                      name: technicianName,
+                      phone: request.technician?.phone || request.technicianPhone || '',
+                      role: request.technician?.role || request.technicianRole || '',
+                      avatar: technicianName.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2),
+                  } : undefined,
+                  estimatedArrival: request.companyExpectedDate,
+                  rating: request.rating ?? undefined,
+                  feedback: request.comment ?? undefined,
+              };
+          });
+
+          // Update stats
+          // Update stats
+      if (response.counts) {
+          setStats(response.counts);
+      }
+
+      // Store mapped requests
       setComplaints(mapped);
+
+      setError('');
+
+      } catch (err) {
+          setError(err instanceof Error ? err.message : 'Unable to load requests');
+      } finally {
+          setLoading(false);
+      }
+  }, []);
+
+  const fetchUnreadCount = useCallback(async () => {
+    try {
+      const res = await apiRequest<{ notifications?: any[] }>(
+        '/company/notification/unread',
+        {},
+        'company'
+      );
+      setUnreadNotifications(res.notifications?.length ?? 0);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to load requests');
-    } finally {
-      setLoading(false);
+      console.error('Failed to fetch unread count:', err);
+      setUnreadNotifications(0);
+    }
+  }, []);
+
+  const fetchReview = async (id: string) => {
+    try {
+      // 👇 Allow both flat and nested responses
+      const res = await apiRequest<{
+        rating?: number;
+        comment?: string;
+        review?: { rating: number; comment: string };
+      }>(
+        `/company/review/request/${id}`,
+        { method: 'GET' },
+        'company'
+      );
+      console.log('Review response:', res);
+
+      // Try to get rating & comment from either shape
+      let rating = res.rating;
+      let comment = res.comment;
+      if (res.review) {
+        rating = res.review.rating;
+        comment = res.review.comment;
+      }
+
+      if (rating !== undefined) {
+        setComplaints(prev =>
+          prev.map(c =>
+            c.id === id
+              ? {
+                  ...c,
+                  rating: rating ?? c.rating,
+                  feedback: comment ?? c.feedback, // map comment → feedback
+                }
+              : c
+          )
+        );
+      }
+    } catch (err) {
+      // ignore – no review yet or error
     }
   };
 
+  const handleToggle = (id: string) => {
+    if (expandedId === id) {
+      setExpandedId(null);
+    } else {
+      setExpandedId(id);
+      const complaint = complaints.find(c => c.id === id);
+      // ✅ Also check for null
+      if (complaint?.status === 'resolved' && (complaint.rating === undefined || complaint.rating === null)) {
+        fetchReview(id);
+      }
+    }
+  };
+
+
   useEffect(() => {
+    // Authentication guard
     const isAuth = localStorage.getItem('companyAuth');
     if (!isAuth) {
       navigate('/company/login');
       return;
     }
 
-    loadRequests();
-  }, [navigate]);
+    // Skip if tab and search haven't changed
+    if (prevTabRef.current === tab && prevSearchRef.current === search) {
+      return;
+    }
+
+    // Update refs with current values
+    prevTabRef.current = tab;
+    prevSearchRef.current = search;
+
+    // Debounce the fetch
+    const handler = setTimeout(() => {
+      if (isFetchingRef.current) return;
+      isFetchingRef.current = true;
+      loadRequests(tab, search)
+        .finally(() => {
+          isFetchingRef.current = false;
+        });
+      fetchUnreadCount();
+    }, 400);
+
+    return () => clearTimeout(handler);
+  }, [tab, search]);
 
   const handleLogout = () => {
     localStorage.removeItem('companyAuth');
@@ -165,6 +297,8 @@ export default function CompanyDashboard() {
           companyNote: acceptForm.notes,
         }),
       }, 'company');
+      console.log('📦 Raw API response:', JSON.stringify(response, null, 2));
+
 
       const updatedRequest = response.request;
       if (updatedRequest) {
@@ -252,6 +386,7 @@ export default function CompanyDashboard() {
       setComplaints((prev) =>
         prev.map((c) => (c.id === id ? { ...c, status: 'resolved', resolvedAt: new Date().toISOString() } : c))
       );
+      fetchReview(id);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to update request');
     }
@@ -274,25 +409,19 @@ export default function CompanyDashboard() {
     return `${Math.floor(h / 24)}d ago`;
   };
 
-  const counts = useMemo(() => ({
-    all: complaints.length,
-    pending: complaints.filter((c) => c.status === 'pending').length,
-    'in-progress': complaints.filter((c) => c.status === 'in-progress').length,
-    resolved: complaints.filter((c) => c.status === 'resolved').length,
-    rejected: complaints.filter((c) => c.status === 'rejected').length,
-  }), [complaints]);
-
   const filtered = useMemo(() => {
-    return complaints.filter((c) => {
-      if (tab !== 'all' && c.status !== tab) return false;
-      if (catFilter !== 'all' && c.category !== catFilter) return false;
-      if (search) {
-        const q = search.toLowerCase();
-        if (!c.description.toLowerCase().includes(q) && !(c.userName ?? '').toLowerCase().includes(q) && !c.address.toLowerCase().includes(q)) return false;
-      }
-      return true;
-    }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [complaints, tab, catFilter, search]);
+      // Only category filter remains client‑side
+      if (catFilter === 'all') return complaints;
+      return complaints.filter((c) => c.category === catFilter);
+  }, [complaints, catFilter]);
+
+  const counts = useMemo(() => ({
+      all: stats.total,
+      pending: stats.pending,
+      'in-progress': stats.inProgress,
+      resolved: stats.resolved,
+      rejected: stats.rejected,
+  }), [stats]);
 
   const companyName = localStorage.getItem('companyName') || 'Company';
 
@@ -342,10 +471,8 @@ export default function CompanyDashboard() {
             <div className="flex items-center gap-1.5">
               <Link to="/company/notifications" className="relative p-2 text-gray-400 hover:bg-gray-100 rounded-lg transition-colors">
                 <Bell className="w-4.5 h-4.5" />
-                {counts.pending > 0 && (
-                  <span className="absolute top-1 right-1 min-w-[16px] h-[16px] bg-red-500 text-white text-[9px] rounded-full flex items-center justify-center font-bold px-0.5">
-                    {counts.pending}
-                  </span>
+                {unreadNotifications > 0 && (
+                  <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full" />
                 )}
               </Link>
               <div className="flex items-center gap-2 pl-2 border-l border-gray-200">
@@ -459,7 +586,7 @@ export default function CompanyDashboard() {
               complaint={c}
               index={i}
               expanded={expandedId === c.id}
-              onToggle={() => setExpandedId(expandedId === c.id ? null : c.id)}
+              onToggle={() => handleToggle(c.id)}
               onAccept={() => setAcceptingId(c.id)}
               onReject={() => setRejectingId(c.id)}
               onResolve={() => handleMarkResolved(c.id)}
@@ -693,11 +820,14 @@ function RequestRow({ complaint: c, index, expanded, onToggle, onAccept, onRejec
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-0.5 flex-wrap">
               <span className="text-sm font-semibold text-gray-900 truncate">{c.userName ?? 'Customer'}</span>
-              <span className={`text-[10px] font-bold border px-1.5 py-0.5 rounded-full capitalize hidden sm:inline ${priorityBadge}`}>
-                {c.priority}
-              </span>
+              {/* priority badge */}
             </div>
             <p className="text-xs text-gray-500 truncate">{c.description}</p>
+            {/* 👇 new address line */}
+            <p className="text-[10px] text-gray-400 truncate mt-0.5 flex items-center gap-1">
+              <MapPin className="w-3 h-3" />
+              {c.address}
+            </p>
           </div>
 
           <div className="flex items-center gap-2.5 flex-shrink-0">
@@ -806,7 +936,7 @@ function RequestRow({ complaint: c, index, expanded, onToggle, onAccept, onRejec
                   )}
 
                   {/* Rating (resolved) */}
-                  {c.status === 'resolved' && c.rating && (
+                  {c.status === 'resolved' && c.rating != null && (
                     <div className="bg-white rounded-xl border border-emerald-100 p-3">
                       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Customer Review</p>
                       <div className="flex gap-0.5 mb-1">

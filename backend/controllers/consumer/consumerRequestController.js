@@ -74,7 +74,6 @@ const postAddRequest = async (req,res)=>{
             consumerName : req.consumer?.name
         });
 
-
         console.log(request);
         res.status(201).json({
             success : true,
@@ -147,6 +146,7 @@ const getConsumerRequestDetail = async (req,res) => {
         await Notification.updateMany({
             request : requestId,
             consumer : req.consumer._id,
+            recipientType : 'consumer',
             isRead : false
         },{
             $set : {isRead : true}

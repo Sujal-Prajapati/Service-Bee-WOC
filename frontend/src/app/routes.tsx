@@ -14,6 +14,8 @@ import CompanyCreateService from './pages/CompanyCreateService';
 import CompanyReviews from './pages/CompanyReviews';
 import CompanyNotifications from './pages/CompanyNotifications';
 import ProtectedRoute from './components/ProtectedRoute';
+import CompanyRequestDetail from './pages/CompanyRequestDetail';
+
 
 export const router = createBrowserRouter([
   { path: '/', Component: Landing },
@@ -90,6 +92,14 @@ export const router = createBrowserRouter([
     Component: () => (
       <ProtectedRoute role="company">
         <CompanyNotifications />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/company/request/:requestId',
+    Component: () => (
+      <ProtectedRoute role="company">
+        <CompanyRequestDetail />
       </ProtectedRoute>
     ),
   },
