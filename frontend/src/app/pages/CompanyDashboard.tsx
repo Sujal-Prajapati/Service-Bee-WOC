@@ -134,7 +134,7 @@ export default function CompanyDashboard() {
                   : 'pending';
               const technicianName = request.technician?.name || request.technicianName;
               return {
-                  id: request._id || request.id,
+                  id: request.id,
                   userName: request.consumer?.name || 'Customer',
                   userPhone: request.consumer?.phone || '',
                   category: request.service?.category || 'cleaning',

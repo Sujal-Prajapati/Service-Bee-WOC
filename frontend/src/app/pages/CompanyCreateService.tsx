@@ -68,7 +68,7 @@ export default function CompanyCreateService() {
       try {
         const response = await apiRequest<{ success?: boolean; services?: Array<any> }>('/company/complaint', {}, 'company');
         const mapped = (response.services || []).map((service: any) => ({
-          id: service._id || service.id,
+          id: service.id,
           name: service.title || 'Service',
           category: service.category,
           priceMin: Number(service.price) || 0,

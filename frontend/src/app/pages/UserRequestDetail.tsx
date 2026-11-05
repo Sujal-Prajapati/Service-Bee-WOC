@@ -73,7 +73,7 @@ export default function UserRequestDetail() {
         const request = response.request;
         const status = request?.status === 'inProgress' ? 'in-progress' : request?.status === 'resolved' ? 'resolved' : request?.status === 'rejected' || request?.status === 'cancelled' ? 'rejected' : 'pending';
         setComplaint({
-          id: request?._id || request?.id || id,
+          id: request?.id || id,
           companyName: request?.company?.name || 'Service Provider',
           category: request?.service?.category || 'cleaning',
           description: request?.description || request?.service?.description || 'Request submitted',

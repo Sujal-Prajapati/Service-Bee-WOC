@@ -25,7 +25,7 @@ import { categories } from '../lib/constants';
 
 // ─── Interfaces ───────────────────────────────────────────────
 interface RequestDetail {
-  _id: string;
+  id: string;
   status: 'pending' | 'inProgress' | 'rejected' | 'resolved' | 'cancelled';
   description?: string;
   address: string;
@@ -38,9 +38,9 @@ interface RequestDetail {
   companyExpectedDate?: string;
   createdAt: string;
   updatedAt: string;
-  consumer: { _id: string; name: string; phone: string };
-  company: { _id: string; name: string };
-  service: { _id: string; name: string; category: string; description?: string };
+  consumer: { id: string; name: string; phone: string };
+  company: { id: string; name: string };
+  service: { id: string; name: string; category: string; description?: string };
 }
 
 interface AcceptForm {
@@ -136,7 +136,7 @@ export default function CompanyRequestDetail() {
     if (!request) return;
     try {
       const response = await apiRequest<{ request?: any }>(
-        `/company/request/${request._id}`,
+        `/company/request/${request.id}`,
         {
           method: 'PATCH',
           body: JSON.stringify({
@@ -178,7 +178,7 @@ export default function CompanyRequestDetail() {
     e.preventDefault();
     if (!request) return;
     try {
-      await apiRequest(`/company/request/${request._id}`, {
+      await apiRequest(`/company/request/${request.id}`, {
         method: 'PATCH',
         body: JSON.stringify({ status: 'rejected' }),
       }, 'company');
@@ -193,7 +193,7 @@ export default function CompanyRequestDetail() {
   const handleResolve = async () => {
     if (!request) return;
     try {
-      await apiRequest(`/company/request/${request._id}`, {
+      await apiRequest(`/company/request/${request.id}`, {
         method: 'PATCH',
         body: JSON.stringify({ status: 'resolved' }),
       }, 'company');
@@ -220,7 +220,7 @@ export default function CompanyRequestDetail() {
             Dashboard
           </Link>
           <span>/</span>
-          <span className="text-gray-700 font-medium">Request #{request._id.slice(-6)}</span>
+          <span className="text-gray-700 font-medium">Request #{request.id.slice(-6)}</span>
         </div>
 
         <motion.div
@@ -255,7 +255,7 @@ export default function CompanyRequestDetail() {
                   <span className="w-1 h-1 rounded-full bg-gray-300" />
                   <span className="flex items-center gap-1">
                     <FileText className="w-3.5 h-3.5" />
-                    {request._id.slice(-6)}
+                    {request.id.slice(-6)}
                   </span>
                 </div>
               </div>

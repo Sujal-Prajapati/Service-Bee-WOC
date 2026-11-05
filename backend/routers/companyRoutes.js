@@ -41,7 +41,7 @@ companyRouter.get('/review', authCompany, companyReview.getAllCompanyReviews);
 companyRouter.get('/review/request/:reqId',authCompany,companyReview.getRequestReview
 )
 
-companyRouter.get('/review/service/:seviceId',authCompany,companyReview.getServiceReview);
+companyRouter.get('/review/service/:serviceId',authCompany,companyReview.getServiceReview);
 
 companyRouter.post('/refresh-token',authCompany,companyAuth.refreshAccessToken);
 

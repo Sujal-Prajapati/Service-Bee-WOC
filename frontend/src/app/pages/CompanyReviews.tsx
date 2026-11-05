@@ -111,7 +111,7 @@ export default function CompanyReviews() {
 
   // Backend stats
   const [overallAvg, setOverallAvg] = useState<number>(0);
-  const [overallDist, setOverallDist] = useState<{ _id: number; count: number }[]>([]);
+  const [overallDist, setOverallDist] = useState<{ rating: number; count: number }[]>([]);
   const [totalReviews, setTotalReviews] = useState<number>(0);
   const [categoryStats, setCategoryStats] = useState<Array<{
     categoryId: string;
@@ -147,7 +147,7 @@ export default function CompanyReviews() {
       const response = await apiRequest<{
         success: boolean;
         stats: { avgRating: number; total: number };
-        overallDistribution: Array<{ _id: number; count: number }>;
+        overallDistribution: Array<{ rating: number; count: number }>;
         categoryStats: Array<{
           category: string;
           avgRating: number;
@@ -181,7 +181,7 @@ export default function CompanyReviews() {
       const mappedReviews: Review[] = (response.reviews || []).map((r) => {
         const cat = categories.find(c => c.id === r.service?.category) || categories[0];
         return {
-          id: r._id,
+          id: r.id,
           userName: r.consumer?.name || 'Customer',
           rating: r.rating,
           comment: r.comment || 'No written review provided.',
@@ -382,7 +382,7 @@ export default function CompanyReviews() {
               {/* Distribution bars – from backend overallDist */}
               <div className="flex-1 space-y-1.5">
                 {[5,4,3,2,1].map((stars) => {
-                  const dist = overallDist.find(d => d._id === stars);
+                  const dist = overallDist.find(d => d.rating === stars);
                   const count = dist ? dist.count : 0;
                   return <RatingBar key={stars} stars={stars} count={count} total={totalReviews} />;
                 })}
@@ -439,7 +439,7 @@ export default function CompanyReviews() {
                   if (selectedCat === 'all') {
                     const dist = [5,4,3,2,1].map(s => ({
                       stars: s,
-                      count: overallDist.find(d => d._id === s)?.count || 0
+                      count: overallDist.find(d => d.rating === s)?.count || 0
                     }));
                     return (
                       <>

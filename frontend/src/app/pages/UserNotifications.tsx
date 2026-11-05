@@ -87,7 +87,7 @@ export default function UserNotifications() {
       try {
         const response = await apiRequest<{ notifications?: Array<any> }>('/consumer/notification', {}, 'user');
         const mapped = (response.notifications || []).map((notification: any) => ({
-          id: notification._id || notification.id,
+          id: notification.id,
           type: notification.type || 'status_update',
           title: notification.title || 'Update',
           message: notification.message || 'Your request has an update.',

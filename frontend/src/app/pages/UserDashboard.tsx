@@ -53,7 +53,7 @@ export default function UserDashboard() {
         const response = await apiRequest<{ success?: boolean; services?: Array<any> }>('/consumer/service', {}, 'user');
         const services = response.services || [];
         const mapped = services.map((service: any) => ({
-          id: service._id || service.id,
+          id: service.id,
           name: service.company?.name || service.title || 'Service Provider',
           category: service.category,
           city: service.location || 'Gandhi Nagar',

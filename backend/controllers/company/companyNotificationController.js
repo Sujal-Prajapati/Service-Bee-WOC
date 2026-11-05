@@ -1,140 +1,118 @@
-const Notification = require('../../models/notification');
+const { pool } = require('../../config/db');
 
-const getNotifications = async (req,res) => {
-    try{
-        const notifications = await Notification.find({
-            company : req.company._id,
-            recipientType : 'company',
-        }).sort({ createdAt: -1 });
+const getNotifications = async (req, res) => {
+    try {
+        // Task: all notifications of this company, newest first.
+        const { rows } = await pool.query(
+            `SELECT id, consumer_id AS consumer, company_id AS company, recipient_type AS "recipientType",
+                    request_id AS request, title, message, is_read AS "isRead",
+                    created_at AS "createdAt", updated_at AS "updatedAt"
+               FROM notifications
+              WHERE company_id = $1
+                AND recipient_type = 'company'
+              ORDER BY created_at DESC`,
+            [req.company.id]
+        );
         res.status(200).json({
-            notifications
+            notifications: rows,
         });
-    }
-    catch(err){
+    } catch (err) {
         res.status(500).json({
-            success : false,
-            message : err.message
+            success: false,
+            message: err.message,
         });
     }
-}
+};
 
-const getUnreadNotifications = async (req,res) => {
-    try{
-        const notifications = await Notification.find({
-            company : req.company._id,
-            recipientType : 'company',
-            isRead : false
-        }).sort({ createdAt: -1 });
+const getUnreadNotifications = async (req, res) => {
+    try {
+        // Task: only the notifications this company has not read yet.
+        const { rows } = await pool.query(
+            `SELECT id, consumer_id AS consumer, company_id AS company, recipient_type AS "recipientType",
+                    request_id AS request, title, message, is_read AS "isRead",
+                    created_at AS "createdAt", updated_at AS "updatedAt"
+               FROM notifications
+              WHERE company_id = $1
+                AND recipient_type = 'company'
+                AND is_read = FALSE
+              ORDER BY created_at DESC`,
+            [req.company.id]
+        );
         res.status(200).json({
-            notifications
+            notifications: rows,
         });
-    }
-    catch(err){
+    } catch (err) {
         res.status(500).json({
-            success : false,
-            message : err.message
+            success: false,
+            message: err.message,
         });
     }
-}
+};
 
-// const getNotificationDetail = async (req,res) => {
-//     try{
-//         const {notId} = req.params;
-//         const notification = await Notification.findById(notId);
-//         if(!notification){
-//             return res.status(404).json({
-//                 message : "notification not found"
-//             });
-//         }
-//         if(notification.company?.toString() !== req.company._id.toString()){
-//             return res.status(403).json({ message: "Forbidden" });
-//         }
-//         if(notification.isRead == false){
-//             notification.isRead = true;
-//             await notification.save();
-//         }
-//         res.status(200).json({
-//             notification
-//         });
-//     }
-//     catch(err){
-//         res.status(500).json({
-//             success : false,
-//             message : err.message
-//         });
-//     }  
-// }
+const patchMarkNotificationRead = async (req, res) => {
+    try {
+        const { notId } = req.params;
 
-const patchMarkNotificationRead = async (req,res) => {
-    try{
-        const {notId} = req.params;
-        const notification = await Notification.findOneAndUpdate({
-            _id : notId,
-            recipientType : 'company',
-            company : req.company._id,
-        },{
-            $set : {isRead : true}
-        },{
-            new:true
-        });
+        // Task: mark ONE notification as read (only if it belongs to this company).
+        const result = await pool.query(
+            `UPDATE notifications
+                SET is_read = TRUE
+              WHERE id = $1
+                AND recipient_type = 'company'
+                AND company_id = $2`,
+            [notId, req.company.id]
+        );
 
-        if(!notification){
+        if (result.rowCount === 0) {
             return res.status(404).json({
-                message : "Notification not found"
+                message: 'Notification not found',
             });
-        } 
+        }
 
         res.status(200).json({
-            sucess : true,
-            message : "Notification maked as read"
+            success: true,
+            message: 'Notification marked as read',
         });
-    }catch(err){
+    } catch (err) {
+        // 22P02 = the id in the URL is not a valid UUID, so no such notification exists
+        if (err.code === '22P02') {
+            return res.status(404).json({ message: 'Notification not found' });
+        }
         res.status(500).json({
-            success : false,
-            message : err.message
+            success: false,
+            message: err.message,
         });
     }
+};
 
-}
-
-const patchMarkAllNotificationRead = async (req,res) => {
-    try{
-        const notification = await Notification.findOneAndUpdate({
-            recipientType : 'company',
-            company : req.company._id,
-            isRead : false
-        },{
-            $set : {isRead : true}
-        },{
-            new:true
-        });
-
-        if(!notification){
-            return res.status(404).json({
-                message : "Notification not found"
-            });
-        } 
+const patchMarkAllNotificationRead = async (req, res) => {
+    try {
+        // Task: mark ALL unread notifications of this company as read.
+        const result = await pool.query(
+            `UPDATE notifications
+                SET is_read = TRUE
+              WHERE recipient_type = 'company'
+                AND company_id = $1
+                AND is_read = FALSE`,
+            [req.company.id]
+        );
 
         res.status(200).json({
-            sucess : true,
-            message : "Notification maked as read"
+            success: true,
+            message: 'All notifications marked as read',
+            updated: result.rowCount,
         });
-    }catch(err){
+    } catch (err) {
         res.status(500).json({
-            success : false,
-            message : err.message
+            success: false,
+            message: err.message,
         });
     }
-
-}
-
-
-
+};
 
 module.exports = {
     getNotifications,
     getUnreadNotifications,
-    // getNotificationDetail,
     patchMarkNotificationRead,
-    patchMarkAllNotificationRead
-}
+    patchMarkAllNotificationRead,
+};

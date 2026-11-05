@@ -57,7 +57,7 @@ export default function UserComplaints() {
             ? 'rejected'
             : 'pending';
           return {
-            id: request._id || request.id,
+            id: request.id,
             companyName: request.company?.name || request.service?.company?.name || 'Service Provider',
             description: request.description || request.service?.description || 'Request submitted',
             address: request.address || '',
